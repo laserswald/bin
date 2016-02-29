@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# punch: a timeclock for contract work
+# 
+# Usage: punch project
+
+echo "$(date): $1" >> ~/usr/doc/punchclock.txt

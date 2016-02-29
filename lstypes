@@ -1,0 +1,5 @@
+#!/bin/sh
+ls --classify | grep -v / | grep -v @ | sed "s/.*\.//" | sort --reverse | uniq --count | sort --reverse
+
+
+

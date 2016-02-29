@@ -1,0 +1,240 @@
+#!/bin/bash
+# gtd.sh
+#
+# A flat file and directory GTD system.
+# 
+# This contains commands for every step of the GTD workflow.
+
+VIEWER=zathura
+
+# Important files to know about!
+GTD_DIR=~/usr/doc
+PROJ_DIR=$GTD_DIR/projects
+NOTE_DIR=$GTD_DIR/notes
+INBOX_DIR=$GTD_DIR/inbox
+INBOX_FILE=$INBOX_DIR/notes.txt
+
+## Capture: collecting anything that I think about.
+
+# quicknote: Add a line to the main Inbox file.
+function quicknote {
+    note="$@"
+    echo "$note" >> $INBOX_FILE
+}
+
+# collect_file: Move a file to the inbox.
+function collect_file {
+    mv $@ $INBOX_DIR
+    echo "It might be a good idea to add a line to your inbox file."
+}
+
+## Clarify: Edit what I know   
+
+# inbox: Edit the main inbox file. 
+function inbox {
+    $EDITOR $INBOX_FILE 
+}
+
+function show_dir_file {
+    local folder=$1
+    local file=$2
+
+    if [[ -f $file ]]; then 
+        cat $file
+    fi
+    if [[ -d $folder ]]; then 
+        printf "========\n"
+        tree $folder
+    fi
+}
+
+function show_inbox {
+    show_dir_file "$INBOX_DIR" "$INBOX_FILE"
+}
+
+function show_project {
+    show_dir_file "$PROJ_DIR/$1" $PROJ_DIR/$1/notes.txt
+}
+
+function process_inbox {
+    # TODO: implement
+    cat $INBOX_FILE | while read item; do
+        echo $item
+        printf "add to (n)otes, (p)roject, (t)odo.sh: "
+        read cmd
+        case $cmd in
+            n | p ) 
+                printf "filename: "
+                read fname
+                test $cmd -e "n" && echo $item >> $NOTE_DIR/$fname.txt
+                test $cmd -e "p" && echo $item >> $PROJ_DIR/$fname/notes.txt
+                ;;
+            t) 
+                echo "$line" >> $GTD_DIR/todo.txt
+                ;;
+            *) 
+                echo "Not understood. Aborting."
+                exit 1
+                ;;
+        esac
+    done
+}
+
+## Organize.
+
+function edit_or_new_project {
+if [[ ! ( -d "${PROJ_DIR}/${1}" ) ]]; then
+        printf "Project $1 doesn't exist. Make it? (y/n)"
+        read cmd
+        case $cmd in
+            y)
+                mk_project $1
+                ;;
+            n)
+                exit 0
+                ;;
+            *)
+                echo "Not understood. Aborting."
+                exit 1
+                ;;
+        esac
+    fi
+    edit_project $1
+}
+
+function list_projects {
+    ls --color=never -1 $PROJ_DIR | sort | uniq
+}
+
+function mk_project {
+    mkdir $PROJ_DIR/$1
+    cp $NOTE_DIR/project_template.txt $PROJ_DIR/notes.txt
+}
+
+function edit_project {
+    vim $PROJ_DIR/$1 $PROJ_DIR/$1/notes.txt +ball
+}
+
+function archive_project {
+    local proj=$1
+    if [[ ! -e $GTD_DIR/archive ]]; then 
+        mkdir $GTD_DIR/archive
+    fi
+    cd $GTD_DIR/$PROJ_DIR
+    $archive=$GTD_DIR/archive/${proj}-$(date +%F-%H%M%S).tar.gz
+    tar c $archive $proj
+    cd -
+}
+
+function rm_project {
+    local proj=$1
+    rm -rf $GTD_DIR/$PROJ_DIR/$proj
+}
+
+## Reflect.
+
+
+# focus on one project.
+function focus {
+    echo "not implemented";
+}
+
+## Engage.
+
+########################################## Notes
+
+############################################
+
+function usage ()
+{
+    echo "Usage: $(basename $0) [options] COMMAND [command args]
+
+    Options:
+    -h|help       Display this message
+    -v|version    Display script version"
+
+    printf "Commands:
+    ls: list projects
+    li: show inbox file and folder
+    c: move file to inbox folder
+    p: edit the project file of given project
+    ar: archive project
+    a: archive and remove from current projects
+    rm: remove project
+    o: Overview; look at all the projects.
+    i: Inbox; Show the inbox file. (Default: notes.txt)
+    q: add a line to the inbox file\n"
+
+}
+
+while getopts ":hv" opt
+do
+  case $opt in
+    h|help     )  usage; exit 0   ;;
+    v|version  )  echo "$0 -- Version $__ScriptVersion"; exit 0   ;;
+    * )  echo -e "\n  Option does not exist : $OPTARG\n"
+          usage; exit 1   ;;
+  esac
+done
+shift $(($OPTIND-1))
+
+if [[ ! $1 ]]; then 
+    usage 
+    exit 0
+fi
+cmd=$1
+shift
+case $cmd in 
+    a|archive-remove )
+        archive_project $1
+        rm_project $1
+        ;;
+   
+    ar|archive )
+        archive_project $1
+        ;;
+    
+    c|collect )
+        collect_file $@
+        ;;
+   
+    gi|go-inbox )
+        cd $GTD_DIR/$INBOX_DIR ;;
+    
+    i|inbox ) 
+        inbox 
+        ;;
+    
+    lh|list-headers ) 
+        list_headers; 
+        exit 0 
+        ;;
+    
+    li|list-inbox ) 
+        show_inbox 
+        ;;
+
+    ls|list-projects ) 
+        list_projects; 
+        exit 0 
+        ;;
+    
+    p|project )
+        edit_or_new_project $1
+        ;;
+
+    pr|process )
+        process_inbox
+        ;;
+   
+    q|quick|quick-note ) 
+        quicknote $@
+        ;;
+    
+    rm|remove )
+        rm_project $1
+        ;;
+   
+    * )
+        usage; exit 1 ;;
+esac

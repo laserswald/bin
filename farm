@@ -1,0 +1,135 @@
+#!/bin/sh
+# farm
+# Manage a symlink farm. 
+
+# 2015 Laserswald.
+
+usage() {
+cat << eof 
+usage: $(basename $0) [-dh] COMMAND STORAGE_DIR [FILE | DIRECTORY ...}
+Use symlinks to store files in a target directory.
+
+    -d removes beginning dot from stored file names
+       (e.g. links .vimrc to target/vimrc)
+    
+    -h show this help
+
+Commands: 
+    install : installs links from target into current directory. 
+    uninstall : Removes target links. 
+    store: move file/directory to storage directory, symlinking.
+    unstore : Removes symlink and moves stored file to current directory
+eof
+}
+
+bail() {
+    echo "$(basename $0): $1"
+    exit 1
+}
+
+while getopts "duhs:i" flag; do 
+    case $flag in
+        d ) dotfile=1 ;;
+        h ) usage && exit 0 ;;
+        ? ) usage && exit 1 ;;
+    esac
+done
+shift $(( OPTIND - 1 ))
+
+if [[ ! $1 & ! $2 ]]; then
+    usage && exit 1
+fi
+
+cmd=$1
+storagedir=$2
+shift 2
+
+## Return the stored name of a given path.
+# If we are in dotfile mode, remove the dot from the beginning of the 
+# path. Else, return the name itself.
+function store_name {
+    local name=$1
+    if [[ $dotfile ]]; then
+        name=$(echo $name | sed "s/^\.//")
+    fi
+    echo $name
+}
+
+## Looking for the stored name of the given path, links it to the current directory.
+function install_node {
+    local name=$1
+    fullstorename=$storagedir/$name
+    if [[ -f $fullstorename | -d $fullstorename ]]; then
+        if [[ $dotfile ]]; then
+            name=".$name"
+        fi
+        ln -s $fullstorename $PWD/$name
+    else
+        bail "Node $1 is not a file or directory."
+    fi
+}
+
+# Taking a stored file, finds a symlink in the target directory, and removes it.
+function uninstall_file {
+    local name=$1 
+    fullstorename=$storagedir/$name
+    if [[ ( -f $fullstorename | -d $fullstorename ) && -L "$PWD/$name" ]]; then
+        rm $PWD/$name
+    fi
+}
+
+## Store a file or directory into the storage directory.
+# 
+# $1 is expected to be the path of a filesystem entry to store into the storage directory.
+# This path should be contained within the current folder. Any upper level folders in the 
+# path will be created inside the storage directory.
+#
+# For example, with a storage directory 'dir', store_node 'my/file' will create the file
+# 'dir/my/file'.
+#
+function store_node { 
+    #check if file exists, if not bail
+    [ -e $1 && ! -h ] || bail "$1 does not exist or is already a link." 
+
+    mv $PWD/$(storename $1) $storagedir 
+    install_node $1
+    
+}
+
+## Unstore a file from the storage directory.
+# $1 is expected to be the full path of a file 
+function unstore_file {
+    local filename=$1
+    test ! -L $filename && bail "$filename is not a link."
+    storagename=$(store_name $filename)
+    rm $filename
+    mv $storagedir/$storagename $filename
+}
+
+if [[ -z $* ]]; then
+    case $cmd in
+        install ) 
+            for file in $(ls $storagedir) ; do
+                install_file $file
+            done
+            ;;
+        uninstall ) 
+            for file in $(ls $storagedir) ; do
+                uninstall_file $file
+            done
+            ;;
+        store ) 
+            for file in $(ls $storagedir) ; do
+                uninstall_file $file
+            done
+            ;;
+        unstore ) 
+            for file in $(ls $storagedir) ; do
+                uninstall_file $file
+            done
+            ;;
+    esac
+else
+    for filename in $*; do
+    done
+fi
