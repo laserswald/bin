@@ -3,48 +3,35 @@
 
 NOTEDIR=~/usr/doc/notes
 
-function list_files {
-    for notefile in $(ls $NOTEDIR | grep .md); do 
-        printf "%s\n\t%s\n" $notefile "$(head -1 $NOTEDIR/$notefile | sed 's/#//g' )"
-    done
+
+function usage {
+cat << eof
+usage: $(basename $0) [-f filename] [-h headername] TEXT
+Find a string in a file and edit the file.
+
+Options:
+    -f : A filename (or a regex) to look for.
+eof
 }
 
-function find_files { 
-    ls $NOTEDIR | grep "$NOTEDIR/$1.md" | head -n 1 | xargs $EDITOR
-}
 
-function list_headers {
-    for notefile in $(ls $NOTEDIR | grep .md); do 
-        printf "\n"
-        grep -B 1 "====" $NOTEDIR/$notefile
-        grep -B 1 "----" $NOTEDIR/$notefile
-        grep "#" $NOTEDIR/$notefile
-    done
-}
-
-function find_header {
-    IFS=: read f l h <<< $(ag --nogroup "#" $NOTEDIR/*.md | grep -i "$@" | head -n1)
-    if [[ $f ]]; then
-        $EDITOR $f +$l 
-    else
-        echo "no header found."
-    fi
-}
-
-while getopts "fh" flag; do
+while getopts "f:" flag; do
    case $flag in
-       f ) file_mode=1 ;;
-       h ) header_mode=1 ;;
-       * ) echo "can't understand that.";;
+       f ) file_regex=$OPTARG ;;
+       * ) usage; exit 1 ;;
    esac 
 done
 shift $(( OPTIND - 1 ))
 
-if [[ ! $1 ]]; then
-    test $file_mode && list_files ''
-    test $header_mode && list_headers ''
+filenames=$(ls -1 $NOTEDIR)
+test $file_regex && filenames=$(echo "$filenames" | grep $file_regex)
+if [[ $* ]]; then
+    IFS=: read f l t <<< $(echo "$filenames" | xargs ag --nogroup "$*" | head -1)
 else
-    echo $1
-    test $file_mode && find_files $1
-    test $header_mode && find_header $1
+    f=$(echo "$filenames" | head -1)
+fi
+if [[ $f ]]; then
+    $EDITOR $f +$l
+else
+    echo "Couldn't find anything."
 fi
