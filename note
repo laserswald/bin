@@ -6,7 +6,7 @@ NOTEDIR=~/usr/doc/notes
 
 function usage {
 cat << eof
-usage: $(basename $0) [-f filename] [-h headername] TEXT
+usage: $(basename $0) [-f filename] TEXT
 Find a string in a file and edit the file.
 
 Options:
@@ -23,6 +23,11 @@ while getopts "f:" flag; do
 done
 shift $(( OPTIND - 1 ))
 
+if [[ ! $file_regex && ! $* ]]; then
+    usage; exit 1;
+fi
+
+cd $NOTEDIR
 filenames=$(ls -1 $NOTEDIR)
 test $file_regex && filenames=$(echo "$filenames" | grep $file_regex)
 if [[ $* ]]; then
@@ -35,3 +40,4 @@ if [[ $f ]]; then
 else
     echo "Couldn't find anything."
 fi
+cd - >/dev/null
